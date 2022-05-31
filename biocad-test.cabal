@@ -25,8 +25,12 @@ source-repository head
 
 library
   exposed-modules:
-      Lib
+      Db
+      Domain
+      Experiment
       Prelude
+      SampleData
+      Util
   other-modules:
       Paths_biocad_test
   hs-source-dirs:
@@ -60,6 +64,7 @@ library
       RankNTypes
       ScopedTypeVariables
       StandaloneDeriving
+      TemplateHaskell
       TupleSections
       TypeApplications
       TypeFamilies
@@ -67,8 +72,15 @@ library
       TypeOperators
   ghc-options: -j8 +RTS -A32m -RTS -O2 -haddock -Wall -Wcompat -Wincomplete-record-updates -Wincomplete-uni-patterns -Wredundant-constraints
   build-depends:
-      base-noprelude
+      QuickCheck
+    , base-noprelude
     , containers
+    , data-default
+    , extra
+    , hasbolt
+    , hasbolt-extras
+    , lens
+    , pretty-simple
     , relude
     , text
   default-language: Haskell2010
@@ -108,6 +120,7 @@ executable biocad-test-exe
       RankNTypes
       ScopedTypeVariables
       StandaloneDeriving
+      TemplateHaskell
       TupleSections
       TypeApplications
       TypeFamilies
@@ -115,9 +128,16 @@ executable biocad-test-exe
       TypeOperators
   ghc-options: -j8 +RTS -A32m -RTS -O2 -haddock -Wall -Wcompat -Wincomplete-record-updates -Wincomplete-uni-patterns -Wredundant-constraints -threaded -rtsopts -with-rtsopts=-N
   build-depends:
-      base-noprelude
+      QuickCheck
+    , base-noprelude
     , biocad-test
     , containers
+    , data-default
+    , extra
+    , hasbolt
+    , hasbolt-extras
+    , lens
+    , pretty-simple
     , relude
     , text
   default-language: Haskell2010
@@ -158,6 +178,7 @@ test-suite biocad-test-test
       RankNTypes
       ScopedTypeVariables
       StandaloneDeriving
+      TemplateHaskell
       TupleSections
       TypeApplications
       TypeFamilies
@@ -165,9 +186,16 @@ test-suite biocad-test-test
       TypeOperators
   ghc-options: -j8 +RTS -A32m -RTS -O2 -haddock -Wall -Wcompat -Wincomplete-record-updates -Wincomplete-uni-patterns -Wredundant-constraints -threaded -rtsopts -with-rtsopts=-N
   build-depends:
-      base-noprelude
+      QuickCheck
+    , base-noprelude
     , biocad-test
     , containers
+    , data-default
+    , extra
+    , hasbolt
+    , hasbolt-extras
+    , lens
+    , pretty-simple
     , relude
     , text
   default-language: Haskell2010

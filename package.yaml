@@ -22,18 +22,32 @@ description: Please see the README on GitHub at <https://github.com/githubuser/b
 dependencies:
   - base-noprelude
   - relude
+  - extra
   - text
-  - containers
-  # - nonempty-containers
+  - lens
+  # - aeson
+  # === effects
   # - mtl
   # - freer-simple
-  # - fmt
+  # === containers
+  - containers
+  # - nonempty-containers
+  # === debug and test
   # - hspec
-  # - QuickCheck
+  # - tasty
+  - QuickCheck
   # - quickcheck-instances
   # - quickcheck-classes
-  # - generic-random
-  # - these
+  - pretty-simple
+  # === for working with neo4j
+  - hasbolt
+  - hasbolt-extras
+  - data-default
+  # === for reaction condition units
+  # - units
+  # - units-defs
+  # === for representing molecules with SMILES
+  # - radium
 
 default-extensions:
   # - ApplicativeDo
@@ -65,6 +79,7 @@ default-extensions:
   - RankNTypes
   - ScopedTypeVariables
   - StandaloneDeriving
+  - TemplateHaskell
   - TupleSections
   - TypeApplications
   - TypeFamilies

@@ -1,7 +1,6 @@
 module Main where
 
-import Lib
-
+import Experiment (experiment)
 
 main :: IO ()
-main = print ("Hello" :: Text)
+main = experiment

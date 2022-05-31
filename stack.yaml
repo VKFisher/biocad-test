@@ -10,16 +10,13 @@
 #
 # resolver: lts-3.5
 # resolver: nightly-2015-09-21
-# resolver: ghc-7.10.2
+resolver: lts-18.28
 #
 # The location of a snapshot can be provided as a file or url. Stack assumes
 # a snapshot provided as a file might change, whereas a url resource does not.
 #
 # resolver: ./custom-snapshot.yaml
 # resolver: https://example.com/snapshots/2018-01-01.yaml
-resolver:
-  url: https://raw.githubusercontent.com/commercialhaskell/stackage-snapshots/master/lts/19/6.yaml
-
 # User packages to be built.
 # Various formats can be used as shown in the example below.
 #
@@ -50,12 +47,17 @@ packages:
 # extra-package-dbs: []
 
 # Control whether we use the GHC we find on the path
-system-ghc: true
+# system-ghc: true
 
 extra-deps:
   - base-noprelude-4.13.0.0@sha256:3cccbfda38e1422ca5cc436d58858ba51ff9114d2ed87915a6569be11e4e5a90,6842
+  - hasbolt-extras-0.0.1.9@sha256:945f9c0cfdffa85888ad6459da9addf96230b9ab175cb25f9fb0d888c7dc7ee6,3954
+#   - units-2.4.1.5@sha256:6d422a47af998f1886165722f6569303e764983a60e461da759c13f9d86c716a,3720
+#   - units-defs-2.2.1@sha256:5b28a11b563cb29e1a9f7225df856225f6fde3d25f0a64dfaa7d11aeef264912,2180
+#   - radium-0.9.0@sha256:35c4ba2c0cf536044b1c4642a989a0fe8d29ac7ea171ebd14a74f05563740561,1903
 
 allow-newer: true
+
 # Require a specific version of stack, using version ranges
 # require-stack-version: -any # Default
 # require-stack-version: ">=2.7"
