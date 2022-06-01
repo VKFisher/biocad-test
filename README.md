@@ -15,3 +15,8 @@ credentials: `neo4j:password`
 ```bash
 stack run biocad-test-exe
 ```
+
+* `Experiment.hs` : пример выполнения действий указанных в условии задания
+* `Db.hs` : взаимодействие с базой данных
+* `Domain.hs` : типы данных предметной области
+* `SampleData.hs` : генерация тестовых данных

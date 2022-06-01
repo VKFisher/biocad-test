@@ -61,7 +61,7 @@ instance Arbitrary Reaction where
     molecules <- take (1 + reactantCount + productCount) . fmap charToMolecule <$> shuffle ['A' .. 'Z']
     let (catalyst, (reactants, products)) = case molecules of
           (x : xs) -> (x, splitAt reactantCount xs)
-          _ -> error "did not generate enogh molecules"
+          _ -> error "did not generate enough molecules"
     reactants' <- fromList <$> traverse componentWithMolecule reactants
     products' <- fromList <$> traverse componentWithMolecule products
     conditions <- conditionsWithMolecule catalyst
