@@ -235,11 +235,15 @@ getShortestPath mFrom mTo = do
 
     cypher = DSL.formQuery $ do
       matchF [mFromSelector, mToSelector]
+      -- Neo.ClientError.Statement.SyntaxError: shortestPath(...) contains properties Parameter(maxPathLength,Any). This is currently not supported.
       textF
-        ( "MATCH p = shortestPath((MFrom)-[*]->(MTo)) "
+        ( "MATCH p = shortestPath((MFrom)-[*.." <> show maxPathLength <> "]->(MTo)) "
             <> "WHERE all(r IN relationships(p) WHERE type(r) IN ['ReagentInRel','ProductFromRel'] )"
         )
       returnF ["p"]
+
+    maxPathLength :: Int
+    maxPathLength = 20
 
     pathToDomain :: [Node] -> Domain.ReactionPath
     pathToDomain (m : r : xs) =
