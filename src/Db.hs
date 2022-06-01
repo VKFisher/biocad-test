@@ -58,32 +58,6 @@ moleculeFromDbRepr m =
 -- Requests                           --
 ----------------------------------------
 
-putMolecule :: MonadIO m => Domain.Molecule -> BoltActionT m ()
-putMolecule molecule = void $ makeRequest @PutRequest [] graphRequest
-  where
-    graphRequest =
-      emptyGraph
-        & addNode "m" (MergeN . toNode . moleculeToDbRepr $ molecule)
-
-getMolecule :: (MonadIO m) => Int -> BoltActionT m (Maybe Domain.Molecule)
-getMolecule moleculeId = do
-  result <- graphRequest
-  let mMolecule = extractNode nodeName <$> viaNonEmpty head result
-  pure $ moleculeFromDbRepr <$> mMolecule
-  where
-    nodeName = "m"
-
-    graphRequest =
-      emptyGraph
-        & addNode
-          nodeName
-          ( defaultNodeReturn
-              & withLabelQ ''Molecule
-              & withBoltId moleculeId
-              & withReturn allProps
-          )
-        & makeRequest @GetRequest []
-
 -- напишите функцию, которая умеет принимать реацию на вход и загружать её в базу;
 putReaction :: MonadIO m => Domain.Reaction -> BoltActionT m Int
 putReaction reaction = do
