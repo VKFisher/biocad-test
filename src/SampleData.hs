@@ -11,14 +11,16 @@ import Test.QuickCheck
 isWhole :: RealFrac b => b -> Bool
 isWhole x = (round (10 ^ (7 :: Integer) * (x - fromIntegral @Integer (round x))) :: Integer) == 0
 
+charToMolecule :: Char -> Molecule
+charToMolecule c =
+  let c' = toText [c]
+   in Molecule
+        { iupacName = "molecule " <> c',
+          smiles = "smiles " <> c'
+        }
+
 instance Arbitrary Molecule where
-  arbitrary =
-    elements ['A' .. 'Z'] <&> \x ->
-      let x' = toText [x]
-       in Molecule
-            { iupacName = "molecule " <> x',
-              smiles = "smiles " <> x'
-            }
+  arbitrary = elements ['A' .. 'Z'] <&> charToMolecule
 
 instance Arbitrary ReactionComponent where
   arbitrary = do
@@ -33,28 +35,40 @@ instance Arbitrary ReactionComponent where
 
 instance Arbitrary ReactionConditions where
   arbitrary = do
-    molecule <- arbitrary
+    catalystComponent <- arbitrary
     temperature <- (`suchThat` (not . isWhole @Double)) $ (/ 100) . fromIntegral <$> chooseInt (1, 100000)
     pressure <- (`suchThat` (not . isWhole @Double)) $ (/ 100) . fromIntegral <$> chooseInt (1, 100000)
     pure
       ReactionConditions
-        { catalyst = molecule,
+        { catalyst = catalystComponent,
           temperature = realToFrac temperature,
           pressure = realToFrac pressure
         }
 
+componentWithMolecule :: Molecule -> Gen ReactionComponent
+componentWithMolecule m = arbitrary <&> \rc -> rc {molecule = m}
+
+conditionsWithMolecule :: Molecule -> Gen ReactionConditions
+conditionsWithMolecule m = do
+  catalystComponent <- componentWithMolecule m
+  arbitrary <&> \rc -> rc {catalyst = catalystComponent}
+
 instance Arbitrary Reaction where
   arbitrary = do
     name <- ("reaction " <>) . show <$> chooseInteger (1, 1000000)
-    -- TODO : arbitrary catalyst not in products / reactants
     productCount <- chooseInt (1, 4)
     reactantCount <- chooseInt (1, 3)
-    (products, reactants) <- splitAt productCount <$> replicateM (productCount + reactantCount) arbitrary
-    conditions <- arbitrary
+    molecules <- take (1 + reactantCount + productCount) . fmap charToMolecule <$> shuffle ['A' .. 'Z']
+    let (catalyst, (reactants, products)) = case molecules of
+          (x : xs) -> (x, splitAt reactantCount xs)
+          _ -> error "did not generate enogh molecules"
+    reactants' <- fromList <$> traverse componentWithMolecule reactants
+    products' <- fromList <$> traverse componentWithMolecule products
+    conditions <- conditionsWithMolecule catalyst
     pure $
       Reaction
-        { products = fromList products,
-          reactants = fromList reactants,
+        { reactants = reactants',
+          products = products',
           name = name,
           conditions = conditions
         }
