@@ -28,3 +28,8 @@ data Reaction = Reaction
     conditions :: ReactionConditions
   }
   deriving (Show)
+
+data ReactionPath
+  = ReactionPathStep Molecule Text ReactionPath -- from molecule, reaction name, next step
+  | ReactionPathFinal Molecule -- final molecule
+  deriving (Show)

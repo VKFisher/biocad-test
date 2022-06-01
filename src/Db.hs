@@ -1,10 +1,12 @@
 module Db where
 
 import Control.Lens (view)
+import Control.Monad.Extra (pureIf)
 import qualified Data.Map as Map
 import qualified Data.Text as T
-import Database.Bolt (BoltActionT)
-import Database.Bolt.Extras (NodeLike (toNode), URelationLike (toURelation))
+import Database.Bolt (BoltActionT, Node, Path (pathNodes), at, queryP)
+import Database.Bolt.Extras (NodeLike (fromNode, toNode), URelationLike (toURelation))
+import Database.Bolt.Extras.DSL as DSL
 import Database.Bolt.Extras.Graph
 import Database.Bolt.Extras.Template (makeNodeLikeWith, makeURelationLikeWith)
 import qualified Domain
@@ -15,7 +17,7 @@ import Util (dropPrefix)
 ----------------------------------------
 
 -- компонент Molecule должен иметь поля id :: Int, smiles :: String, iupacName :: String;
-data Molecule = Molecule {m_iupacName :: Text, m_smiles :: Text}
+data Molecule = Molecule {m_iupacName :: Text, m_smiles :: Text} deriving (Show)
 
 -- компонент Reaction должен иметь поля id :: Int, name :: String;
 newtype Reaction = Reaction {r_name :: Text}
@@ -148,9 +150,29 @@ putReaction reaction = do
 getReaction :: (MonadIO m) => Int -> BoltActionT m (Maybe Domain.Reaction)
 getReaction reactionId = do
   result <- makeRequest @GetRequest [] graphRequest
-  let result' = mergeGraphs <$> if null result then Nothing else Just result
+  let result' = mergeGraphs <$> pureIf (not . null $ result) result
   pure $ toDomain <$> result'
   where
+    graphRequest =
+      emptyGraph
+        & addNode "reaction" (getNode ''Reaction & withBoltId reactionId)
+        & addNode "reactant" (getNode ''Molecule)
+        & addRelation "reactant" "reaction" (getRel ''ReagentInRel)
+        & addNode "product" (getNode ''Molecule)
+        & addRelation "reaction" "product" (getRel ''ProductFromRel)
+        & addNode "catalyst" (getNode ''Catalyst)
+        & addRelation "catalyst" "reaction" (getRel ''AccelerateRel)
+
+    getNode n =
+      defaultNodeReturn
+        & withLabelQ n
+        & withReturn allProps
+
+    getRel n =
+      defaultRelReturn
+        & withLabelQ n
+        & withReturn allProps
+
     reactionNodeName = "reaction" <> show reactionId
 
     toDomain :: Graph NodeName NodeResult RelResult -> Domain.Reaction
@@ -216,26 +238,40 @@ getReaction reactionId = do
         & Map.keys
         & filter f
 
-    graphRequest =
-      emptyGraph
-        & addNode "reaction" (getNode ''Reaction & withBoltId reactionId)
-        & addNode "reactant" (getNode ''Molecule)
-        & addRelation "reactant" "reaction" (getRel ''ReagentInRel)
-        & addNode "product" (getNode ''Molecule)
-        & addRelation "reaction" "product" (getRel ''ProductFromRel)
-        & addNode "catalyst" (getNode ''Catalyst)
-        & addRelation "catalyst" "reaction" (getRel ''AccelerateRel)
-
-    getNode n =
-      defaultNodeReturn
-        & withLabelQ n
-        & withReturn allProps
-
-    getRel n =
-      defaultRelReturn
-        & withLabelQ n
-        & withReturn allProps
-
 -- напишите функцию, которая по двум заданным молекулам ищет путь через реакции и молекулы с наименьшей длиной.
-getShortestPath :: (MonadIO m) => Int -> Int -> BoltActionT m (Maybe Domain.Reaction)
-getShortestPath mFromId mToId = pure Nothing
+getShortestPath :: (MonadIO m) => Domain.Molecule -> Domain.Molecule -> BoltActionT m (Maybe Domain.ReactionPath)
+getShortestPath mFrom mTo = do
+  mResult <- viaNonEmpty head <$> queryP cypher Map.empty
+  mPath <- case mResult of
+    Nothing -> pure Nothing
+    Just x -> x `at` "p"
+  pure $ pathToDomain . pathNodes <$> mPath
+  where
+    mFromSelector =
+      mFrom
+        & toNodeSelector . toNode . moleculeToDbRepr
+        & DSL.withIdentifier "MFrom"
+        & PS . P
+
+    mToSelector =
+      mTo
+        & toNodeSelector . toNode . moleculeToDbRepr
+        & DSL.withIdentifier "MTo"
+        & PS . P
+
+    cypher = DSL.formQuery $ do
+      matchF [mFromSelector, mToSelector]
+      textF
+        ( "MATCH p = shortestPath((MFrom)-[*]->(MTo)) "
+            <> "WHERE all(r IN relationships(p) WHERE type(r) IN ['ReagentInRel','ProductFromRel'] )"
+        )
+      returnF ["p"]
+
+    pathToDomain :: [Node] -> Domain.ReactionPath
+    pathToDomain (m : r : xs) =
+      Domain.ReactionPathStep
+        (moleculeFromDbRepr . fromNode $ m)
+        (r_name . fromNode $ r)
+        (pathToDomain xs)
+    pathToDomain [m] = Domain.ReactionPathFinal . moleculeFromDbRepr . fromNode $ m
+    pathToDomain [] = error "invalid length of reaction path"

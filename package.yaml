@@ -36,6 +36,7 @@ dependencies:
   # - hspec
   # - tasty
   - QuickCheck
+  - splitmix
   # - quickcheck-instances
   # - quickcheck-classes
   - pretty-simple
