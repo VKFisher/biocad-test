@@ -57,17 +57,17 @@ instance Arbitrary Reaction where
   arbitrary = do
     name <- ("reaction " <>) . show <$> chooseInteger (1, 1000000)
     productCount <- chooseInt (1, 4)
-    reactantCount <- chooseInt (1, 3)
-    molecules <- take (1 + reactantCount + productCount) . fmap charToMolecule <$> shuffle ['A' .. 'Z']
-    let (catalyst, (reactants, products)) = case molecules of
-          (x : xs) -> (x, splitAt reactantCount xs)
+    reagentCount <- chooseInt (1, 3)
+    molecules <- take (1 + reagentCount + productCount) . fmap charToMolecule <$> shuffle ['A' .. 'Z']
+    let (catalyst, (reagents, products)) = case molecules of
+          (x : xs) -> (x, splitAt reagentCount xs)
           _ -> error "did not generate enough molecules"
-    reactants' <- fromList <$> traverse componentWithMolecule reactants
+    reagents' <- fromList <$> traverse componentWithMolecule reagents
     products' <- fromList <$> traverse componentWithMolecule products
     conditions <- conditionsWithMolecule catalyst
     pure $
       Reaction
-        { reactants = reactants',
+        { reagents = reagents',
           products = products',
           name = name,
           conditions = conditions
