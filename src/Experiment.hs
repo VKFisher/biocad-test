@@ -5,7 +5,7 @@ import Data.Default
 import qualified Data.Map as Map
 import Database.Bolt
 import Db (getReaction, getShortestPath, putReaction)
-import Domain (Molecule (iupacName), Reaction (products, reagents), ReactionComponent (molecule))
+import Domain (Molecule (iupacName), Reaction (products, reactants), ReactionComponent (molecule))
 import SampleData ()
 import System.Random.SplitMix (mkSMGen)
 import Test.QuickCheck (Arbitrary (arbitrary))
@@ -57,7 +57,7 @@ runTasks = do
   pPrint (r1, r2)
 
   putStrLn "== Task 3: finding shortest path =="
-  let mFrom = molecule . head . reagents $ r1
+  let mFrom = molecule . head . reactants $ r1
   let mTo = molecule . head . products $ r2
   putStrLn $ toString $ "Looking for shortest path between " <> iupacName mFrom <> " and " <> iupacName mTo
   shortestPath <- runQueryDB $ getShortestPath mFrom mTo

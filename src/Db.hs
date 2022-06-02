@@ -26,7 +26,7 @@ newtype Reaction = Reaction {r_name :: Text}
 data Catalyst = Catalyst {c_smiles :: Text, c_name :: Maybe Text}
 
 -- компонент PRODUCT_FROM должен иметь поле amount :: Float;
-newtype REAGENT_IN = REAGENT_IN {ri_amount :: Double}
+newtype REACTANT_IN = REACTANT_IN {ri_amount :: Double}
 
 newtype PRODUCT_FROM = PRODUCT_FROM {pf_amount :: Double}
 
@@ -40,7 +40,7 @@ data ACCELERATE = ACCELERATE
 makeNodeLikeWith ''Molecule dropPrefix
 makeNodeLikeWith ''Reaction dropPrefix
 makeNodeLikeWith ''Catalyst dropPrefix
-makeURelationLikeWith ''REAGENT_IN dropPrefix
+makeURelationLikeWith ''REACTANT_IN dropPrefix
 makeURelationLikeWith ''PRODUCT_FROM dropPrefix
 makeURelationLikeWith ''ACCELERATE dropPrefix
 
@@ -75,20 +75,20 @@ putReaction reaction = do
       emptyGraph
         & addNode reactionNodeName (MergeN . toNode $ Reaction {r_name = Domain.name reaction})
         & addCatalyst
-        & addReagents
+        & addReactants
         & addProducts
         & makeRequest @PutRequest []
 
     reactionNodeName = "reaction"
 
-    addReagents =
-      Domain.reagents reaction
+    addReactants =
+      Domain.reactants reaction
         & toList
         & zip @Int [1 ..]
         <&> ( \(n, x) ->
-                let nodeName = "reagent" <> show n
+                let nodeName = "reactant" <> show n
                     putN = MergeN . toNode . moleculeToDbRepr . Domain.molecule $ x
-                    putR = MergeR . toURelation $ REAGENT_IN {ri_amount = Domain.amount x}
+                    putR = MergeR . toURelation $ REACTANT_IN {ri_amount = Domain.amount x}
                  in addRelation nodeName reactionNodeName putR . addNode nodeName putN
             )
         & foldr (.) id
@@ -134,8 +134,8 @@ getReaction reactionId = do
     graphRequest =
       emptyGraph
         & addNode "reaction" (getNode ''Reaction & withBoltId reactionId)
-        & addNode "reagent" (getNode ''Molecule)
-        & addRelation "reagent" "reaction" (getRel ''REAGENT_IN)
+        & addNode "reactant" (getNode ''Molecule)
+        & addRelation "reactant" "reaction" (getRel ''REACTANT_IN)
         & addNode "product" (getNode ''Molecule)
         & addRelation "reaction" "product" (getRel ''PRODUCT_FROM)
         & addNode "catalyst" (getNode ''Catalyst)
@@ -158,7 +158,7 @@ getReaction reactionId = do
       Domain.Reaction
         { Domain.name = r_name $ extractNode reactionNodeName g,
           Domain.products = fromList $ products g,
-          Domain.reagents = fromList $ reagents g,
+          Domain.reactants = fromList $ reactants g,
           Domain.conditions = catalyst g
         }
 
@@ -174,12 +174,12 @@ getReaction reactionId = do
                   }
             )
 
-    reagents :: Graph NodeName NodeResult RelResult -> [Domain.ReactionComponent]
-    reagents g =
+    reactants :: Graph NodeName NodeResult RelResult -> [Domain.ReactionComponent]
+    reactants g =
       g
-        & nodeNamesMatching (T.isPrefixOf "reagent")
+        & nodeNamesMatching (T.isPrefixOf "reactant")
         <&> (\n -> (extractNode n g, extractRelation n reactionNodeName g))
-        <&> ( \(m, REAGENT_IN {ri_amount}) ->
+        <&> ( \(m, REACTANT_IN {ri_amount}) ->
                 Domain.ReactionComponent
                   { Domain.molecule = moleculeFromDbRepr m,
                     Domain.amount = ri_amount
@@ -225,7 +225,7 @@ getShortestPath mFrom mTo = do
     cypher = DSL.formQuery $ do
       matchF [mFromSelector, mToSelector]
       textF $
-        "MATCH p = shortestPath((MFrom)-[r:REAGENT_IN|:PRODUCT_FROM*.." <> show maxPathLength <> "]->(MTo))"
+        "MATCH p = shortestPath((MFrom)-[r:REACTANT_IN|:PRODUCT_FROM*.." <> show maxPathLength <> "]->(MTo))"
           <> "WHERE ALL(n in nodes(p) WHERE n:Molecule OR n:Reaction)"
       returnF ["nodes(p) AS pN"]
 

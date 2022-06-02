@@ -23,7 +23,7 @@ data ReactionConditions = ReactionConditions
 
 data Reaction = Reaction
   { name :: Text,
-    reagents :: NonEmpty ReactionComponent,
+    reactants :: NonEmpty ReactionComponent,
     products :: NonEmpty ReactionComponent,
     conditions :: ReactionConditions
   }
