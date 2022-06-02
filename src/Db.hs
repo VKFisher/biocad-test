@@ -4,7 +4,7 @@ import Control.Lens (view)
 import Control.Monad.Extra (pureIf)
 import qualified Data.Map as Map
 import qualified Data.Text as T
-import Database.Bolt (BoltActionT, Node, Path (pathNodes), at, queryP)
+import Database.Bolt (BoltActionT, Node, at, queryP)
 import Database.Bolt.Extras (NodeLike (fromNode, toNode), URelationLike (toURelation))
 import Database.Bolt.Extras.DSL as DSL
 import Database.Bolt.Extras.Graph
@@ -205,7 +205,7 @@ getReaction reactionId = do
                     }
               )
 
-    nodeNamesMatching :: (NodeName -> Bool) -> Graph NodeName NodeResult RelResult -> [NodeName]
+    nodeNamesMatching :: (NodeName -> Bool) -> Graph NodeName a b -> [NodeName]
     nodeNamesMatching f g =
       g
         & view vertices
@@ -216,30 +216,14 @@ getReaction reactionId = do
 getShortestPath :: (MonadIO m) => Domain.Molecule -> Domain.Molecule -> BoltActionT m (Maybe Domain.ReactionPath)
 getShortestPath mFrom mTo = do
   mResult <- viaNonEmpty head <$> queryP cypher Map.empty
-  mPath <- case mResult of
-    Nothing -> pure Nothing
-    Just x -> x `at` "p"
-  pure $ pathToDomain . pathNodes <$> mPath
+  pathToDomain <<$>> maybe (pure Nothing) (`at` "pN") mResult
   where
-    mFromSelector =
-      mFrom
-        & toNodeSelector . toNode . moleculeToDbRepr
-        & DSL.withIdentifier "MFrom"
-        & PS . P
-
-    mToSelector =
-      mTo
-        & toNodeSelector . toNode . moleculeToDbRepr
-        & DSL.withIdentifier "MTo"
-        & PS . P
-
     cypher = DSL.formQuery $ do
       matchF [mFromSelector, mToSelector]
-      -- Neo.ClientError.Statement.SyntaxError:
-      -- shortestPath(...) contains properties Parameter(maxPathLength,Any). This is currently not supported.
       textF $
         "MATCH p = shortestPath((MFrom)-[r:ReagentInRel|:ProductFromRel*.." <> show maxPathLength <> "]->(MTo))"
-      returnF ["p"]
+          <> "WHERE ALL(n in nodes(p) WHERE n:Molecule OR n:Reaction)"
+      returnF ["nodes(p) AS pN"]
 
     maxPathLength :: Int
     maxPathLength = 20
@@ -252,3 +236,15 @@ getShortestPath mFrom mTo = do
         (pathToDomain xs)
     pathToDomain [m] = Domain.ReactionPathFinal . moleculeFromDbRepr . fromNode $ m
     pathToDomain [] = error "invalid length of reaction path"
+
+    mFromSelector =
+      mFrom
+        & toNodeSelector . toNode . moleculeToDbRepr
+        & DSL.withIdentifier "MFrom"
+        & PS . P
+
+    mToSelector =
+      mTo
+        & toNodeSelector . toNode . moleculeToDbRepr
+        & DSL.withIdentifier "MTo"
+        & PS . P
