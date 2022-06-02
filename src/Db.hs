@@ -20,19 +20,23 @@ import Util (dropPrefix)
 data Molecule = Molecule {m_iupacName :: Text, m_smiles :: Text}
 
 -- компонент Reaction должен иметь поля id :: Int, name :: String;
-newtype Reaction = Reaction {r_name :: Text}
+data Reaction = Reaction {r_name :: Text, r_rate :: Double}
 
 -- компонент Catalyst должен иметь поля id :: Int, smiles :: String, name :: Maybe String;
-data Catalyst = Catalyst {c_smiles :: Text, c_name :: Maybe Text}
+data Catalyst = Catalyst
+  { c_smiles :: Text,
+    c_name :: Maybe Text
+  }
 
 -- компонент PRODUCT_FROM должен иметь поле amount :: Float;
-newtype REACTANT_IN = REACTANT_IN {ri_amount :: Double}
+data REACTANT_IN = REACTANT_IN {ri_amount :: Double, ri_concentration :: Double}
 
 newtype PRODUCT_FROM = PRODUCT_FROM {pf_amount :: Double}
 
 -- компонент ACCELERATE должен иметь поле temperature :: Float, pressure :: Float;
 data ACCELERATE = ACCELERATE
   { a_amount :: Double,
+    a_concentration :: Double,
     a_temperature :: Double,
     a_pressure :: Double
   }
@@ -73,7 +77,14 @@ putReaction reaction = do
   where
     graphRequest =
       emptyGraph
-        & addNode reactionNodeName (MergeN . toNode $ Reaction {r_name = Domain.name reaction})
+        & addNode
+          reactionNodeName
+          ( MergeN . toNode $
+              Reaction
+                { r_name = Domain.name reaction,
+                  r_rate = Domain.rate reaction
+                }
+          )
         & addCatalyst
         & addReactants
         & addProducts
@@ -87,8 +98,13 @@ putReaction reaction = do
         & zip @Int [1 ..]
         <&> ( \(n, x) ->
                 let nodeName = "reactant" <> show n
-                    putN = MergeN . toNode . moleculeToDbRepr . Domain.molecule $ x
-                    putR = MergeR . toURelation $ REACTANT_IN {ri_amount = Domain.amount x}
+                    putN = MergeN . toNode . moleculeToDbRepr . Domain.rcMolecule $ x
+                    putR =
+                      MergeR . toURelation $
+                        REACTANT_IN
+                          { ri_amount = Domain.rcAmount x,
+                            ri_concentration = Domain.rcConcentration x
+                          }
                  in addRelation nodeName reactionNodeName putR . addNode nodeName putN
             )
         & foldr (.) id
@@ -99,15 +115,15 @@ putReaction reaction = do
         & zip @Int [1 ..]
         <&> ( \(n, x) ->
                 let nodeName = "product" <> show n
-                    putN = MergeN . toNode . moleculeToDbRepr . Domain.molecule $ x
-                    putR = MergeR . toURelation $ PRODUCT_FROM {pf_amount = Domain.amount x}
+                    putN = MergeN . toNode . moleculeToDbRepr . Domain.rpMolecule $ x
+                    putR = MergeR . toURelation $ PRODUCT_FROM {pf_amount = Domain.rpAmount x}
                  in addRelation reactionNodeName nodeName putR . addNode nodeName putN
             )
         & foldr (.) id
 
     addCatalyst =
       let reactionConditions = Domain.conditions reaction
-          catalyst = Domain.molecule $ Domain.catalyst reactionConditions
+          catalyst = Domain.rcMolecule $ Domain.catalyst reactionConditions
           nodeName = "catalyst"
           putN =
             MergeN . toNode $
@@ -120,7 +136,8 @@ putReaction reaction = do
               ACCELERATE
                 { a_temperature = Domain.temperature reactionConditions,
                   a_pressure = Domain.pressure reactionConditions,
-                  a_amount = Domain.amount . Domain.catalyst $ reactionConditions
+                  a_amount = Domain.rcAmount . Domain.catalyst $ reactionConditions,
+                  a_concentration = Domain.rcConcentration . Domain.catalyst $ reactionConditions
                 }
        in addRelation nodeName reactionNodeName putR . addNode nodeName putN
 
@@ -155,22 +172,24 @@ getReaction reactionId = do
 
     toDomain :: Graph NodeName NodeResult RelResult -> Domain.Reaction
     toDomain g =
-      Domain.Reaction
-        { Domain.name = r_name $ extractNode reactionNodeName g,
-          Domain.products = fromList $ products g,
-          Domain.reactants = fromList $ reactants g,
-          Domain.conditions = catalyst g
-        }
+      let rNode = extractNode reactionNodeName g
+       in Domain.Reaction
+            { Domain.name = r_name rNode,
+              Domain.rate = r_rate rNode,
+              Domain.products = fromList $ products g,
+              Domain.reactants = fromList $ reactants g,
+              Domain.conditions = catalyst g
+            }
 
-    products :: Graph NodeName NodeResult RelResult -> [Domain.ReactionComponent]
+    products :: Graph NodeName NodeResult RelResult -> [Domain.ReactionProduct]
     products g =
       g
         & nodeNamesMatching (T.isPrefixOf "product")
         <&> (\n -> (extractNode n g, extractRelation reactionNodeName n g))
         <&> ( \(m, PRODUCT_FROM {pf_amount}) ->
-                Domain.ReactionComponent
-                  { Domain.molecule = moleculeFromDbRepr m,
-                    Domain.amount = pf_amount
+                Domain.ReactionProduct
+                  { Domain.rpMolecule = moleculeFromDbRepr m,
+                    Domain.rpAmount = pf_amount
                   }
             )
 
@@ -179,10 +198,11 @@ getReaction reactionId = do
       g
         & nodeNamesMatching (T.isPrefixOf "reactant")
         <&> (\n -> (extractNode n g, extractRelation n reactionNodeName g))
-        <&> ( \(m, REACTANT_IN {ri_amount}) ->
+        <&> ( \(m, REACTANT_IN {ri_amount, ri_concentration}) ->
                 Domain.ReactionComponent
-                  { Domain.molecule = moleculeFromDbRepr m,
-                    Domain.amount = ri_amount
+                  { Domain.rcMolecule = moleculeFromDbRepr m,
+                    Domain.rcAmount = ri_amount,
+                    Domain.rcConcentration = ri_concentration
                   }
             )
 
@@ -193,19 +213,20 @@ getReaction reactionId = do
               & fromMaybe (error "no catalyst node") . viaNonEmpty head
        in g
             & extractNode catalystNodeName &&& extractRelation catalystNodeName reactionNodeName
-            & ( \(Catalyst {c_smiles, c_name}, ACCELERATE {a_temperature, a_pressure, a_amount}) ->
+            & ( \(cNode, aRel) ->
                   Domain.ReactionConditions
                     { Domain.catalyst =
                         Domain.ReactionComponent
-                          { Domain.molecule =
+                          { Domain.rcMolecule =
                               Domain.Molecule
-                                { Domain.smiles = c_smiles,
-                                  Domain.iupacName = fromMaybe (error "no catalyst name") c_name
+                                { Domain.smiles = c_smiles cNode,
+                                  Domain.iupacName = fromMaybe (error "no catalyst name") $ c_name cNode
                                 },
-                            Domain.amount = a_amount
+                            Domain.rcAmount = a_amount aRel,
+                            Domain.rcConcentration = a_concentration aRel
                           },
-                      Domain.temperature = a_temperature,
-                      Domain.pressure = a_pressure
+                      Domain.temperature = a_temperature aRel,
+                      Domain.pressure = a_pressure aRel
                     }
               )
 
